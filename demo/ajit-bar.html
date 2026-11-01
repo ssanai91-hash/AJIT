@@ -208,8 +208,7 @@ button { cursor: pointer; }
     <header class="top">
       <div class="top-title"><b>숭열이네 바</b><small id="status">3명 접속</small></div>
       <button class="pill" id="switchBtn" type="button">캐릭터 바꾸기</button>
-      <button class="pill" id="inviteBtn" type="button" hidden>초대하기</button>
-      <button class="pill" id="callBtn" type="button" hidden>부르기</button>
+      <button class="pill" id="callBtn" type="button" hidden>친구 부르기</button>
     </header>
     <div class="scene-wrap" id="sceneWrap">
       <div class="scene" id="scene" aria-label="바 장면">
@@ -364,24 +363,21 @@ button { cursor: pointer; }
     if (ONLINE) await loadRoster();
     renderCards();
   });
-  async function shareBar(calling) {
+  async function shareBar() {
     const url = new URL(location.pathname, location.origin).href;
-    const text = calling
-      ? `${P[me]?.name || '친구'}님이 부르고 있어요! 지금 숭열이네 바에서 같이 얘기하자 🍻`
-      : '숭열이네 바에 초대해요! 캐릭터를 고르고 같이 한잔하며 얘기하자.';
+    const text = `${P[me]?.name || '친구'}님이 부르고 있어요! 숭열이네 바에서 같이 얘기하자 🍻 링크를 열고 캐릭터를 골라 입장해요.`;
     try {
       if (navigator.share) {
-        await navigator.share({ title: calling ? '아지트로 와!' : '숭열이네 바 초대', text, url });
+        await navigator.share({ title: '아지트로 와!', text, url });
         return;
       }
       await navigator.clipboard.writeText(text + '\n' + url);
-      flash(calling ? '부르기 메시지를 복사했어요. 카톡방에 붙여넣어 주세요' : '초대 메시지를 복사했어요. 카카오톡에 붙여넣어 주세요', 4000);
+      flash('부르기 메시지를 복사했어요. 카톡방에 붙여넣어 주세요', 4000);
     } catch (err) {
       if (err?.name !== 'AbortError') window.prompt('메시지를 복사해 카카오톡으로 보내 주세요', text + '\n' + url);
     }
   }
-  $('inviteBtn').addEventListener('click', () => shareBar(false));
-  $('callBtn').addEventListener('click', () => shareBar(true));
+  $('callBtn').addEventListener('click', shareBar);
 
   // ── 장면 ────────────────────────────
   function buildShelf() {
@@ -741,7 +737,6 @@ button { cursor: pointer; }
   }
   async function bootOnline() {
     $('switchBtn').hidden = false;
-    $('inviteBtn').hidden = false;
     $('callBtn').hidden = false;
     document.querySelector('.hint').textContent = '입장할 캐릭터를 고르세요. 다른 기기에서 접속 중이면 이 기기로 옮겨져요.';
     const q = new URLSearchParams(location.search);
