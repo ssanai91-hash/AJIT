@@ -1,6 +1,6 @@
 # 배포 (Cloudflare 무료 플랜)
 
-GitHub `main`에 올리면 GitHub Actions가 `worker/`를 Cloudflare에 자동 배포한다.
+커밋하거나 GitHub `main`에 올려도 배포하지 않는다. 형이 배포를 요청한 뒤에만 GitHub Actions 수동 실행 또는 Wrangler로 `worker/`를 Cloudflare에 배포한다.
 결과 주소: `https://ajit.<계정이름>.workers.dev`
 
 ## 처음 한 번만 (방장)
@@ -26,7 +26,7 @@ https://dash.cloudflare.com/sign-up → 이메일 가입 (카드 필요 없음)
 | `CLOUDFLARE_ACCOUNT_ID` | 2번 계정 ID |
 
 ### 5. 배포 실행
-저장소 **Actions → deploy → Run workflow** (이후엔 main에 올릴 때마다 자동)
+형이 배포를 요청하면 저장소 **Actions → deploy → Run workflow**를 수동 실행한다. 커밋·push로는 실행되지 않는다.
 
 ## 친구 초대
 ```

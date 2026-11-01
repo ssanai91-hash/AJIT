@@ -1,10 +1,8 @@
-# main에 올리면 Cloudflare로 자동 배포
+# 수동 실행으로만 Cloudflare에 배포 (커밋·push는 배포하지 않음)
 # 필요한 저장소 Secrets: CLOUDFLARE_API_TOKEN, CLOUDFLARE_ACCOUNT_ID (docs/DEPLOY.md 참고)
 name: deploy
 
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 concurrency: deploy
