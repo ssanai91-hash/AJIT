@@ -16,6 +16,7 @@ export interface Member {
   id: string;          // 캐릭터 키 (chansu, jungin, sungyeol)
   name: string;
   owner: boolean;
+  seated: boolean;     // 나가기를 누르기 전까지 자리 유지
   claimed: boolean;    // 누군가 이 캐릭터를 자기 것으로 가져갔는지
   whisky: number;      // 1~12
   level: number;       // 0~4
@@ -70,7 +71,7 @@ export const ROSTER = [
 
 export function initialState(now: number): State {
   const members: Record<string, Member> = {};
-  for (const r of ROSTER) members[r.id] = { id: r.id, name: r.name, owner: r.owner, claimed: false, whisky: r.whisky, level: 2, emo: 'neutral', emoUntil: 0, lastSeen: 0 };
+  for (const r of ROSTER) members[r.id] = { id: r.id, name: r.name, owner: r.owner, claimed: false, seated: false, whisky: r.whisky, level: 2, emo: 'neutral', emoUntil: 0, lastSeen: 0 };
   return { name: '숭열이네 바', members, order: ROSTER.map((r) => r.id), toast: null, chat: [{ seq: 1, who: '', kind: 'sys', text: '바가 문을 열었어요', at: now }], seq: 1 };
 }
 

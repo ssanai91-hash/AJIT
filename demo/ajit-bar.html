@@ -209,6 +209,7 @@ button { cursor: pointer; }
       <div class="top-title"><b>숭열이네 바</b><small id="status">3명 접속</small></div>
       <button class="pill" id="switchBtn" type="button">캐릭터 바꾸기</button>
       <button class="pill" id="callBtn" type="button" hidden>친구 부르기</button>
+      <button class="pill" id="leaveBtn" type="button">나가기</button>
     </header>
     <div class="scene-wrap" id="sceneWrap">
       <div class="scene" id="scene" aria-label="바 장면">
@@ -326,7 +327,7 @@ button { cursor: pointer; }
     if (!ONLINE) return id === 'sungyeol' ? '방장' : '고정 멤버';
     const r = rosterOf(id); if (!r) return '';
     if (r.claimed && store.get('ajit.me') === id && store.get('ajit.token')) return '내 자리';
-    if (r.claimed) return r.online ? '접속 중 · 이 기기로 옮기기' : '다시 입장하기';
+    if (r.claimed) return r.seated ? '착석 중 · 이 기기로 옮기기' : '다시 입장하기';
     return r.owner ? '방장 자리 · 비어 있음' : '비어 있음';
   }
   function josa(n) { const c = n.charCodeAt(n.length - 1) - 0xac00; return c >= 0 && c % 28 !== 0 && c % 28 !== 8 ? '으로' : '로'; }
@@ -355,14 +356,28 @@ button { cursor: pointer; }
     } else if (serverState) applyState(serverState);
     fit();
   }
-  $('switchBtn').addEventListener('click', async () => {
+  function returnToSelection() {
     stopFriends();
-    const previous = net; net = null; me = null; picked = null;
+    const previous = net; net = null; me = null; picked = null; serverState = null;
     previous?.close();
     $('barView').hidden = true; $('selectView').hidden = false;
-    if (ONLINE) await loadRoster();
     renderCards();
-  });
+  }
+  async function leaveBar() {
+    if (ONLINE) {
+      try {
+        const response = await fetch('/api/bar/leave', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: store.get('ajit.token') }),
+        });
+        if (!response.ok && response.status !== 401) throw new Error('leave failed');
+      } catch { flash('나가기를 처리하지 못했어요. 다시 눌러 주세요'); return; }
+    }
+    returnToSelection();
+    if (ONLINE) { await loadRoster(); renderCards(); }
+  }
+  $('switchBtn').addEventListener('click', leaveBar);
+  $('leaveBtn').addEventListener('click', leaveBar);
   async function shareBar() {
     const url = new URL(location.pathname, location.origin).href;
     const text = `${P[me]?.name || '친구'}님이 부르고 있어요! 숭열이네 바에서 같이 얘기하자 🍻 링크를 열고 캐릭터를 골라 입장해요.`;
@@ -660,15 +675,24 @@ button { cursor: pointer; }
     const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/api/bar/ws');
     net = ws;
     ws.onopen = () => ws.send(JSON.stringify({ t: 'hello', ...hello }));
-    ws.onmessage = (e) => { try { onNet(JSON.parse(e.data)); } catch (err) { console.error(err); } };
+    ws.onmessage = (e) => { if (net !== ws) return; try { onNet(JSON.parse(e.data)); } catch (err) { console.error(err); } };
     ws.onclose = () => {
       if (net !== ws) return;
       net = null;
-      if (me && store.get('ajit.token')) { flash('연결이 끊겼어요. 다시 연결하는 중…'); setTimeout(() => { if (!net) connect({ token: store.get('ajit.token') }); }, 1500); }
+      if (me && store.get('ajit.token')) { flash('연결이 끊겼어요. 다시 연결하는 중…'); setTimeout(() => { if (!net && me && store.get('ajit.token')) connect({ token: store.get('ajit.token') }); }, 1500); }
     };
   }
+  function resumeConnection() {
+    if (!ONLINE || !me || !store.get('ajit.token') || document.visibilityState === 'hidden') return;
+    const previous = net; net = null;
+    previous?.close();
+    connect({ token: store.get('ajit.token') });
+  }
+  document.addEventListener('visibilitychange', resumeConnection);
+  window.addEventListener('pageshow', (event) => { if (event.persisted) resumeConnection(); });
   async function loadRoster() { roster = await fetch('/api/bar').then((r) => r.json()).catch(() => null); }
   async function onNet(m) {
+    if (m.type === 'departed') { returnToSelection(); return; }
     if (m.type === 'welcome') {
       store.set('ajit.me', m.me); if (m.token) store.set('ajit.token', m.token);
       enter(m.me);
@@ -687,7 +711,7 @@ button { cursor: pointer; }
     }
   }
   function applyState(st) {
-    const on = new Set(st.online || []);
+    const on = new Set(st.seated || st.online || []);
     const skew = Date.now() - st.now;
     for (const id of IDS) {
       const m = st.members[id]; if (!m || !els[id]) continue;
@@ -706,7 +730,7 @@ button { cursor: pointer; }
     for (const l of st.chat) lines.push(l.kind === 'sys' ? { sys: true, text: l.text } : { id: l.who, text: l.text, emo: l.emo, kind: l.kind });
     renderChat();
     const n = IDS.filter((id) => on.has(id)).length;
-    $('status').textContent = `${n}명 접속${IDS.length - n ? ` · ${IDS.length - n}명 빈자리` : ''}`;
+    $('status').textContent = `${n}명 착석${IDS.length - n ? ` · ${IDS.length - n}명 빈자리` : ''}`;
     const tb = $('banner');
     if (st.toast && st.toast.deadline + skew > Date.now()) {
       const mine = st.toast.participants.includes(me);

@@ -23,7 +23,7 @@ export class BarRoom extends DurableObject<Env> {
     ctx.blockConcurrencyWhile(async () => {
       this.s = (await ctx.storage.get<State>('state')) ?? initialState(Date.now());
       // 기존에 저장된 감정도 기본 얼굴로 복귀시킨다. 표정 기능은 임시 중지.
-      for (const m of Object.values(this.s.members)) { m.emo = 'neutral'; m.emoUntil = 0; }
+      for (const m of Object.values(this.s.members)) { m.emo = 'neutral'; m.emoUntil = 0; m.seated ??= this.online().has(m.id); }
       this.tokens = (await ctx.storage.get<Record<string, string>>('tokens')) ?? {};
     });
   }
@@ -36,7 +36,7 @@ export class BarRoom extends DurableObject<Env> {
 
   private publicState() {
     const on = this.online();
-    return { ...this.s, online: [...on], now: Date.now() };
+    return { ...this.s, online: [...on], seated: this.s.order.filter((id) => this.s.members[id].seated), now: Date.now() };
   }
 
   private async save() {
@@ -58,6 +58,23 @@ export class BarRoom extends DurableObject<Env> {
 
   async fetch(req: Request): Promise<Response> {
     const url = new URL(req.url);
+    if (url.pathname.endsWith('/leave') && req.method === 'POST') {
+      const body = await req.json().catch(() => ({})) as { token?: string };
+      const id = Object.keys(this.tokens).find((key) => body.token && this.tokens[key] === body.token);
+      if (!id) return Response.json({ error: '다시 입장해 주세요' }, { status: 401 });
+      const wasSeated = this.s.members[id].seated;
+      this.s.members[id].seated = false;
+      this.s.members[id].lastSeen = Date.now();
+      for (const socket of this.ctx.getWebSockets()) {
+        if ((socket.deserializeAttachment() as Att | null)?.id !== id) continue;
+        socket.serializeAttachment(null);
+        try { socket.send(JSON.stringify({ type: 'departed' })); socket.close(4003, 'left bar'); } catch {}
+      }
+      if (wasSeated) pushLine(this.s, { who: '', kind: 'sys', text: `${this.s.members[id].name}님이 바에서 나갔어요`, at: Date.now() });
+      await this.save(); this.pushState();
+      if (wasSeated) this.emit([{ type: 'leave', id }]);
+      return Response.json({ ok: true });
+    }
     if (url.pathname.endsWith('/ws')) {
       if (req.headers.get('Upgrade') !== 'websocket') return new Response('websocket only', { status: 426 });
       const pair = new WebSocketPair();
@@ -72,7 +89,7 @@ export class BarRoom extends DurableObject<Env> {
       emotionsEnabled: false,
       members: this.s.order.map((id) => {
         const m = this.s.members[id];
-        return { id, name: m.name, owner: m.owner, claimed: m.claimed, online: on.has(id), lastSeen: m.lastSeen };
+        return { id, name: m.name, owner: m.owner, claimed: m.claimed, seated: m.seated, online: on.has(id), lastSeen: m.lastSeen };
       }),
     });
   }
@@ -100,7 +117,8 @@ export class BarRoom extends DurableObject<Env> {
         if (firstVisit) pushLine(this.s, { who: '', kind: 'sys', text: `${m.name}님이 처음으로 바에 왔어요!`, at: now });
       }
       if (!id) return this.reject(ws, '입장 정보가 없어요. 링크를 열어 빈 캐릭터를 골라 주세요', true);
-      const wasOn = this.online().has(id);
+      const wasOn = this.s.members[id].seated;
+      this.s.members[id].seated = true;
       // 새 연결만 이 캐릭터를 제어한다. 이전 토큰·소켓의 자동 복귀는 허용하지 않는다.
       for (const old of this.ctx.getWebSockets()) {
         if (old === ws || (old.deserializeAttachment() as Att | null)?.id !== id) continue;
@@ -155,7 +173,7 @@ export class BarRoom extends DurableObject<Env> {
     this.s.members[a.id].lastSeen = Date.now();
     await this.save();
     this.pushState();
-    this.emit([{ type: 'leave', id: a.id }]);
+    // 연결 단절은 퇴석이 아니다. 재접속 시 입장 알림도 반복하지 않는다.
   }
 
   async alarm() {
@@ -167,7 +185,7 @@ export class BarRoom extends DurableObject<Env> {
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const url = new URL(req.url);
-    if (url.pathname === '/api/bar' || url.pathname === '/api/bar/ws') {
+    if (url.pathname === '/api/bar' || url.pathname === '/api/bar/ws' || url.pathname === '/api/bar/leave') {
       const stub = env.BAR.get(env.BAR.idFromName('main'));
       return stub.fetch(req);
     }

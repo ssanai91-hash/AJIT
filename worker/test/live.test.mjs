@@ -85,10 +85,13 @@ assert.deepEqual(tr.participants.sort(), ['chansu', 'sungyeol']); ok('건배 제
 // 9) 찬수 나갔다가 토큰으로 복귀 → 같은 캐릭터, 잔 상태 유지
 cs.ws.close();
 await until(() => sy.state.online.length === 1);
-assert.ok(sy.evs.some((e) => e.type === 'leave' && e.id === 'chansu')); ok('나가면 접속 해제 표시');
+assert.ok(sy.state.seated.includes('chansu'));
+assert.ok(!sy.evs.some((e) => e.type === 'leave' && e.id === 'chansu'));
+const linesBeforeResume = sy.state.chat.length; ok('연결이 끊겨도 착석 유지, 퇴장 알림 없음');
 const cs2 = await phone({ token: cs.token });
 assert.equal(cs2.me, 'chansu');
 await until(() => cs2.state?.online?.length === 2);
+assert.equal(cs2.state.chat.length, linesBeforeResume);
 assert.equal(cs2.state.members.chansu.emo, 'neutral'); ok('토큰으로 같은 캐릭터·기본 얼굴 복귀');
 
 // 10) 잘못된 토큰 → 다시 고르라고 안내
@@ -99,6 +102,19 @@ assert.match(ghost.errs[0], /입장 정보/); ok('모르는 토큰은 다시 고
 send(cs2, { t: 'release', id: 'jungin' });
 await until(() => cs2.errs.some((e) => /방장만/.test(e))); ok('방장이 아니면 자리 비우기 불가');
 
-for (const p of [sy, cs2]) p.ws.close();
+// 브라우저를 닫은 상태에서도 토큰으로 명시적 퇴석 가능
+cs2.ws.close();
+await until(() => sy.state.online.length === 1);
+const badLeave = await fetch(BASE + '/api/bar/leave', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: 'wrong' }) });
+assert.equal(badLeave.status, 401);
+const leave = await fetch(BASE + '/api/bar/leave', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: cs2.token }) });
+assert.equal(leave.status, 200);
+await until(() => !sy.state.seated.includes('chansu'));
+assert.ok(sy.evs.some((e) => e.type === 'leave' && e.id === 'chansu'));
+ok('나가기 요청 때만 퇴석, 잘못된 토큰 거부');
+const back = await phone({ token: cs2.token });
+await until(() => back.state?.seated.includes('chansu'));
+ok('명시적 퇴석 후 재입장 가능');
+for (const p of [sy, back]) p.ws.close();
 console.log('모두 통과');
 process.exit(0);
