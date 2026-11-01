@@ -119,7 +119,7 @@ button { cursor: pointer; }
 @keyframes clinkL { 40%, 75% { transform: translate(78px, -120px) rotate(14deg) } }
 @keyframes clinkC { 40%, 75% { transform: translate(0, -128px) } }
 @keyframes clinkR { 40%, 75% { transform: translate(-78px, -120px) rotate(-14deg) } }
-.bottle { bottom: 134px; width: 18px; height: 46px; border-radius: 5px 5px 3px 3px; box-shadow: inset 3px 0 0 rgba(255,255,255,0.18); z-index: 5; }
+.table-bottle { bottom: 134px; transform: translateX(-50%); overflow: hidden; filter: drop-shadow(1px 2px 1px rgba(20,10,5,.4)); z-index: 7; pointer-events: none; }
 .plate { bottom: 26px; transform: translateX(-50%); padding: 3px 12px; border-radius: 4px; background: var(--wood-dk); color: var(--amber-hi); border: 1px solid #b47a46; font-size: 13px; z-index: 6; white-space: nowrap; }
 .plate.me { background: var(--amber); color: var(--ink); }
 .plate.away { color: #8a7a66; }
@@ -281,6 +281,12 @@ button { cursor: pointer; }
     ['깊은밤', '버번', '짙은 캐러멜과 묵직한 오크의 강한 존재감.', '#1f2e2a'],
   ];
   const SLOT = [72, 196, 322];           // 왼쪽 · 가운데(나) · 오른쪽
+  // 두 병은 개인 선택 상태와 별개로 테이블 중앙에 함께 놓는 소품이다.
+  // viewBox는 첨부 원본 manifest의 투명 여백을 제외한 프레임을 그대로 쓴다.
+  const TABLE_BOTTLES = [
+    { name: '발렌타인 30년', file: 'img/whisky/bottle_ballantines_30.webp', width: 1024, height: 1536, frame: [275, 29, 474, 1480], x: 134, h: 78 },
+    { name: '조니워커 블루라벨', file: 'img/whisky/bottle_johnnie_walker_blue.webp', width: 725, height: 2170, frame: [117, 17, 491, 2115], x: 259, h: 82 },
+  ];
   const H = 430;
 
   let me = null, order = [], picked = null;
@@ -379,18 +385,24 @@ button { cursor: pointer; }
       ch.style.cssText = `left:${Math.round(cx - p.cx * CS)}px;top:${Math.round(COUNTER_Y + 30 - p.bottom * CS)}px;width:${Math.round(p.w * CS)}px;height:${Math.round(p.h * CS)}px;z-index:${k === 1 ? 4 : k === 2 ? 3 : 2}`;
       ch.innerHTML = window.AjitRig.markup(p.n, p.name);
       $('people').append(ch);
-      const bottle = document.createElement('div');
-      bottle.className = 'abs bottle';
-      bottle.style.cssText = `left:${cx + 8}px;background:linear-gradient(90deg,${WHISKY[p.whisky][3]},#1b130e)`;
       const glass = document.createElement('div');
       glass.className = 'abs glass'; glass.style.left = (cx - 26) + 'px';
       glass.innerHTML = `<i style="background:${p.liquid}"></i>`;
       const plate = document.createElement('div');
       plate.className = 'abs plate' + (id === me ? ' me' : ''); plate.style.left = cx + 'px'; plate.textContent = p.name;
-      $('props').append(bottle, glass);
-      els[id] = { ch, glass, bottle, plate, cx, face: ch.querySelector('.face'), pose: 'rest', emoTimer: 0, headTop: Math.round(COUNTER_Y + 30 - p.bottom * CS + 4), timer: 0 };
+      $('props').append(glass);
+      els[id] = { ch, glass, plate, cx, face: ch.querySelector('.face'), pose: 'rest', emoTimer: 0, headTop: Math.round(COUNTER_Y + 30 - p.bottom * CS + 4), timer: 0 };
       setLevel(id);
     });
+    for (const b of TABLE_BOTTLES) {
+      const bottle = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      bottle.classList.add('abs', 'table-bottle');
+      bottle.setAttribute('role', 'img'); bottle.setAttribute('aria-label', b.name);
+      bottle.setAttribute('viewBox', b.frame.join(' '));
+      bottle.style.cssText = `left:${b.x}px;width:${b.h * b.frame[2] / b.frame[3]}px;height:${b.h}px`;
+      bottle.innerHTML = `<image href="${b.file}" width="${b.width}" height="${b.height}"/>`;
+      $('props').append(bottle);
+    }
   }
   function setLevel(id) { els[id].glass.firstElementChild.style.height = (levels[id] * 6) + 'px'; }
   function setPose(id, pose) {
@@ -545,7 +557,6 @@ button { cursor: pointer; }
     }
     if (t.dataset.pour) {
       const i = +t.dataset.pour - 1; P[me].whisky = i;
-      els[me].bottle.style.background = `linear-gradient(90deg,${WHISKY[i][3]},#1b130e)`;
       levels[me] = 4; setLevel(me); closeSheet();
       say(me, `오늘은 ${WHISKY[i][0]}${josa2(WHISKY[i][0])} 간다`);
     }
@@ -648,7 +659,7 @@ button { cursor: pointer; }
     for (const id of IDS) {
       const m = st.members[id]; if (!m || !els[id]) continue;
       levels[id] = m.level; setLevel(id);
-      if (P[id].whisky !== m.whisky - 1) { P[id].whisky = m.whisky - 1; els[id].bottle.style.background = `linear-gradient(90deg,${WHISKY[m.whisky - 1][3]},#1b130e)`; }
+      if (P[id].whisky !== m.whisky - 1) P[id].whisky = m.whisky - 1;
       const away = !on.has(id);
       els[id].ch.classList.toggle('away', away);
       const left = m.emoUntil + skew - Date.now();

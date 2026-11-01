@@ -1,0 +1,34 @@
+{
+  "ballantines_30": {
+    "label": "발렌타인 30년",
+    "file": "assets/bottle_ballantines_30.png",
+    "width": 1024,
+    "height": 1536,
+    "frame": {
+      "x": 275,
+      "y": 29,
+      "width": 474,
+      "height": 1480
+    },
+    "origin": {
+      "x": 0.5,
+      "y": 1
+    }
+  },
+  "johnnie_walker_blue": {
+    "label": "조니워커 블루라벨",
+    "file": "assets/bottle_johnnie_walker_blue.png",
+    "width": 725,
+    "height": 2170,
+    "frame": {
+      "x": 117,
+      "y": 17,
+      "width": 491,
+      "height": 2115
+    },
+    "origin": {
+      "x": 0.5,
+      "y": 1
+    }
+  }
+}
