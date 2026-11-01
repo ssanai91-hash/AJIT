@@ -527,7 +527,7 @@ button { cursor: pointer; }
     $('sheet').innerHTML = `
       <button class="x" type="button" data-x="close" aria-label="닫기">✕</button>
       <h2 id="sheetTitle">술장</h2>
-      <p class="sub">고른 병이 내 자리에 놓이고 친구들에게도 보여요.</p>
+      <p class="sub">마실 위스키를 골라 잔에 따라요.</p>
       <div class="wlist">${WHISKY.map((x, i) => `<button type="button" class="w${i + 1 === sel ? ' on' : ''}" data-w="${i + 1}"><i style="background:linear-gradient(90deg,${x[3]},#1b130e)"></i><b>${x[0]}</b><small>${x[1]}</small></button>`).join('')}</div>
       <p class="wnote"><b style="font-weight:400;color:var(--amber-hi)">${w[0]}</b> · ${w[2]}</p>
       <div class="row"><button class="btn primary" type="button" data-pour="${sel}">이 술로 따르기</button></div>`;
