@@ -158,6 +158,8 @@ button { cursor: pointer; }
 /* 키보드가 올라오면: 행동 버튼·대화 목록을 숨기고 장면 + 입력만 */
 .typing .dock, .typing .chat { display: none; }
 .typing .composer { padding-bottom: 8px; }
+/* 인물 축척은 유지하고, 공간이 부족할 때 장면만 세로로 스크롤한다. */
+.typing .scene-wrap { flex: 1; min-height: 0; overflow-y: auto; }
 
 .sheet-back { position: absolute; inset: 0; background: rgba(5,10,12,0.6); z-index: 30; }
 .sheet { position: absolute; left: 0; right: 0; bottom: 0; max-height: 78%; overflow-y: auto; z-index: 31; background: #10232a; border-top: 2px solid var(--amber); border-radius: 18px 18px 0 0; padding-top: 18px; padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px)); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); animation: up .2s ease-out; }
@@ -603,25 +605,41 @@ button { cursor: pointer; }
   }
 
   // ── 화면 크기 · 키보드 ─────────────────
+  let sceneViewportHeight = window.visualViewport?.height || window.innerHeight;
+  let sceneViewportWidth = window.innerWidth;
+  let inputSession = false;
   function fit() {
     const vv = window.visualViewport;
     const vh = vv ? vv.height : window.innerHeight;
+    const focused = document.activeElement === $('msg');
+    const widthChanged = Math.abs(window.innerWidth - sceneViewportWidth) > 2;
+    // 키보드가 innerHeight까지 줄이는 Android에서도 입력 전 높이를 기준으로 삼는다.
+    if (widthChanged || (!inputSession && !focused)) {
+      sceneViewportHeight = vh;
+      sceneViewportWidth = window.innerWidth;
+    }
+    if (focused) inputSession = true;
+    const typing = inputSession && vh < sceneViewportHeight * 0.85;
+    if (!focused && !typing) inputSession = false;
+    const wasTyping = $('app').classList.contains('typing');
     document.documentElement.style.setProperty('--vvh', vh + 'px');
-    const typing = document.activeElement === $('msg') && vv && vv.height < window.innerHeight * 0.85;
-    $('app').classList.toggle('typing', !!typing);
+    $('app').classList.toggle('typing', typing);
     const wrapW = $('sceneWrap').clientWidth || 390;
-    let k = wrapW / 390;
-    if (typing) k = Math.min(k, (vh - 54 - 44 - 60) / H);   // 키보드 위: 장면 + 칩 + 입력
-    else k = Math.min(k, (vh * 0.56) / H);
-    k = Math.max(0.5, k);
+    const k = Math.max(0.5, Math.min(wrapW / 390, (sceneViewportHeight * 0.56) / H));
     $('scene').style.transform = `scale(${k})`;
+    // transform이 바꾸지 않는 레이아웃 높이를 보정해 스크롤 끝의 빈 공간을 없앤다.
+    $('scene').style.marginBottom = (H * k - H) + 'px';
     $('sceneWrap').style.height = Math.round(H * k) + 'px';
+    if (typing && !wasTyping) {
+      // 윗쪽 장식 일부를 넘겨 얼굴과 잔이 먼저 보이게 한다. 나머지는 스크롤 가능.
+      $('sceneWrap').scrollTop = Math.min(100 * k, Math.max(0, H * k - $('sceneWrap').clientHeight));
+    } else if (!typing) $('sceneWrap').scrollTop = 0;
     if (vv) window.scrollTo(0, 0);
   }
   window.addEventListener('resize', fit);
   window.visualViewport?.addEventListener('resize', fit);
   window.visualViewport?.addEventListener('scroll', () => window.scrollTo(0, 0));
-  $('msg').addEventListener('focus', () => setTimeout(fit, 250));
+  $('msg').addEventListener('focus', () => { inputSession = true; setTimeout(fit, 250); });
   $('msg').addEventListener('blur', () => { setTimeout(fit, 250); $('bubbles').querySelector(`[data-id="${me}"].dots`)?.remove(); });
 
   // ── 실시간 서버 연결 (온라인판) ─────────────
