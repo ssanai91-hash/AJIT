@@ -25,7 +25,14 @@ head = """<!doctype html>
 <body>
 """
 (out / 'index.html').write_text(head + src + '\n</body>\n</html>\n', encoding='utf-8')
+# Developer-only visual check uses local simulated friends and its own storage
+# keys. Opening this page never claims a real member or sends a chat message.
+offline = (head + src + '\n</body>\n</html>\n').replace('window.AJIT_ONLINE = true', 'window.AJIT_ONLINE = false')
+offline = offline.replace('ajit.me', 'ajit.visual-check.me').replace('ajit.token', 'ajit.visual-check.token')
+(out / 'rig-play.html').write_text(offline, encoding='utf-8')
 if (out / 'img').exists():
     shutil.rmtree(out / 'img')
 shutil.copytree(ROOT / 'demo' / 'img', out / 'img')
+for name in ['rig.js', 'rig-data.js', 'rig-check.html']:
+    shutil.copyfile(ROOT / 'demo' / name, out / name)
 print('built', out / 'index.html')

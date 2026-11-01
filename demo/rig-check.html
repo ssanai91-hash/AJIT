@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="ko"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AJIT character registration check</title>
+<style>
+body{margin:20px;background:#20352f;color:#fff1d4;font:16px system-ui}button{padding:10px 18px;margin:4px;cursor:pointer}
+.grid{display:grid;grid-template-columns:repeat(9,200px);gap:12px}.cell{width:200px;overflow:visible;text-align:center;background:#15251f;border:1px solid #597162;border-radius:8px}
+.art{width:180px;height:248px;position:relative;margin:auto;overflow:hidden}.character-rig{width:180px;height:248px;overflow:visible;display:block}
+[data-pose],.face{opacity:0}[data-pose].on,.face.on{opacity:1}.cell b{display:block;padding:8px}.check-status{white-space:pre-line}
+</style>
+<h1>어깨 접합 · 표정 위치 확인</h1><div><button data-pose-switch="rest">대기</button><button data-pose-switch="toast">건배</button><button data-pose-switch="sip">한 모금</button><button id="cycle">반복 전환</button></div>
+<p class="check-status" id="status">네트워크·계정·좌석에 영향을 주지 않는 그림 확인 화면</p><div class="grid" id="grid"></div>
+<script src="rig-data.js"></script><script src="rig.js"></script><script>
+const grid=document.getElementById('grid'),statusEl=document.getElementById('status');
+const emotions=['neutral','smile','laugh','surprised','sad','worried','annoyed','tipsy','sleepy'];
+const labels=['기본','미소','큰웃음','놀람','슬픔','걱정','짜증','알딸딸','졸림'];
+let current='rest',timer;
+for(let n=1;n<=3;n++)for(let i=0;i<emotions.length;i++){
+ const cell=document.createElement('div');cell.className='cell';cell.dataset.emo=emotions[i];
+ cell.innerHTML=`<b>${['찬수','정인','숭열'][n-1]} · ${labels[i]}</b><div class="art">${AjitRig.markup(n)}</div>`;
+ grid.append(cell);AjitRig.setExpression(cell,emotions[i]);
+}
+function pose(p){current=p;document.querySelectorAll('.cell').forEach(cell=>{cell.querySelectorAll('[data-pose]').forEach(g=>g.classList.toggle('on',g.dataset.pose===p));AjitRig.setExpression(cell,cell.dataset.emo,p!=='sip');});statusEl.textContent='현재 자세: '+p;}
+document.querySelectorAll('[data-pose-switch]').forEach(b=>b.onclick=()=>{clearInterval(timer);pose(b.dataset.poseSwitch);});
+cycle.onclick=()=>{clearInterval(timer);timer=setInterval(()=>pose(['rest','toast','sip'][(['rest','toast','sip'].indexOf(current)+1)%3]),1800);};
+</script></html>

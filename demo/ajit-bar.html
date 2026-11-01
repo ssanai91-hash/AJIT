@@ -86,11 +86,13 @@ button { cursor: pointer; }
 .bgimg, .fgimg { left: -227px; top: -22px; width: 845px; height: 563px; max-width: none; pointer-events: none; }
 .fgimg { z-index: 5; }
 .char { transform-origin: 50% 100%; animation: breathe 3.4s ease-in-out infinite; }
-.char img { position: absolute; left: 0; top: 0; width: 100%; max-width: none; opacity: 0; transition: opacity .12s; }
-.char img.on { opacity: 1; }
 .char.cheer { animation: hop .55s ease-out 3; }
 .char.away { filter: brightness(.62) saturate(.7); }
-.char img.face.on { animation: facepop .28s ease-out; }
+.character-rig { display: block; width: 100%; height: 100%; overflow: visible; }
+.character-rig [data-pose], .character-rig .face { opacity: 0; }
+.character-rig [data-pose].on, .character-rig .face.on { opacity: 1; }
+/* Switch without crossfading two different faces or shoulder outlines. */
+.character-rig .face { pointer-events: none; }
 @keyframes facepop { 0% { transform: scale(.94); } 60% { transform: scale(1.03); } 100% { transform: none; } }
 .emo-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 .emo { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 10px 4px; border-radius: 14px; background: var(--night); border: 2px solid var(--line); font-size: 14px; }
@@ -236,6 +238,8 @@ button { cursor: pointer; }
   <div class="toast" id="toast" hidden></div>
 </div>
 
+<script src="rig-data.js"></script>
+<script src="rig.js"></script>
 <script>
 (() => {
   const $ = (id) => document.getElementById(id);
@@ -249,11 +253,15 @@ button { cursor: pointer; }
     sungyeol: { name: '숭열', n: 3, face: 'img/face3.webp', w: 223, h: 218, cx: 151, bottom: 207, liquid: '#b5651d', whisky: 5 },
   };
   const IDS = Object.keys(P);
-  const POSES = ['rest', 'toast', 'sip'];
+  for (const p of Object.values(P)) {
+    const rig = window.AjitRig.data[p.n];
+    p.w = 170; p.h = rig.height / rig.width * p.w;
+    p.cx = p.w / 2; p.bottom = rig.waist / rig.width * p.w;
+  }
   const EMO = [['neutral', '기본'], ['smile', '미소'], ['laugh', '큰웃음'], ['surprised', '놀람'], ['sad', '슬픔'], ['worried', '걱정'], ['annoyed', '짜증'], ['tipsy', '알딸딸'], ['sleepy', '졸림']];
   const EMO_LABEL = Object.fromEntries(EMO);
   const emoNow = {};
-  for (const id of IDS) P[id].img = `img/c${P[id].n}_rest.webp`;
+  for (const id of IDS) P[id].img = `img/bust${P[id].n}.webp`;
   const COUNTER_Y = 281;                 // 카운터 윗면 (장면 좌표)
   const CS = 0.86;                       // 인물 크기: 뒤 선반이 더 보이도록 살짝 작게
   const WHISKY = [
@@ -353,11 +361,11 @@ button { cursor: pointer; }
     $('people').innerHTML = ''; $('props').innerHTML = ''; $('bubbles').innerHTML = '';
     order.forEach((id, k) => {
       const p = P[id], cx = SLOT[k];
-      // 종이인형: 같은 캔버스의 자세 3장을 겹쳐 두고 하나만 보인다 (머리·몸통은 고정)
+      // 모든 자세와 표정을 원본 눈·입 좌표에 맞춘 SVG 좌표계에서 전환한다.
       const ch = document.createElement('div');
       ch.className = 'abs char';
       ch.style.cssText = `left:${Math.round(cx - p.cx * CS)}px;top:${Math.round(COUNTER_Y + 30 - p.bottom * CS)}px;width:${Math.round(p.w * CS)}px;height:${Math.round(p.h * CS)}px;z-index:${k === 1 ? 4 : k === 2 ? 3 : 2}`;
-      ch.innerHTML = POSES.map((ps) => `<img src="img/c${p.n}_${ps}.webp" alt="${ps === 'rest' ? p.name : ''}" data-pose="${ps}"${ps === 'rest' ? ' class="on"' : ''}>`).join('') + '<img class="face" alt="">';
+      ch.innerHTML = window.AjitRig.markup(p.n, p.name);
       $('people').append(ch);
       const bottle = document.createElement('div');
       bottle.className = 'abs bottle';
@@ -376,23 +384,21 @@ button { cursor: pointer; }
   function setPose(id, pose) {
     const e = els[id]; if (!e) return;
     e.pose = pose;
-    e.ch.querySelectorAll('img[data-pose]').forEach((im) => im.classList.toggle('on', im.dataset.pose === pose));
+    e.ch.querySelectorAll('[data-pose]').forEach((im) => im.classList.toggle('on', im.dataset.pose === pose));
     showFace(id);
     e.glass.style.visibility = pose === 'rest' ? '' : 'hidden';      // 잔을 들면 카운터 위 잔은 숨김
   }
-  // 표정: 몸·팔과 따로 머리만 바뀐다. 한 모금 중에는 잔이 입을 가리므로 표정 얼굴을 잠시 숨김
+  // 눈·눈썹·입만 교체한다. 머리카락·귀·턱·목·상의는 원본을 유지한다.
   function showFace(id) {
     const e = els[id]; if (!e) return;
     const emo = emoNow[id];
     const on = !!emo && emo !== 'neutral' && e.pose !== 'sip';
-    if (on && !e.face.src.endsWith(`_face_${emo}.webp`)) e.face.src = `img/c${P[id].n}_face_${emo}.webp`;
-    e.face.classList.toggle('on', on);
+    window.AjitRig.setExpression(e.ch, emo, on);
   }
   function setEmo(id, emo, quiet, ms) {
     const e = els[id]; if (!e) return;
     clearTimeout(e.emoTimer);
     emoNow[id] = emo;
-    e.face.classList.remove('on'); void e.face.offsetWidth;
     showFace(id);
     if (!quiet && emo !== 'neutral') { lines.push({ id, emo, text: EMO_LABEL[emo], kind: 'emo' }); renderChat(); }
     const dur = ms ?? (emo === 'tipsy' || emo === 'sleepy' ? 30000 : 12000);
