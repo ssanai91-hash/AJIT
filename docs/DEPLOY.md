@@ -17,34 +17,35 @@ https://dash.cloudflare.com/sign-up → 이메일 가입 (카드 필요 없음)
 → Account Resources: 내 계정 선택 / Zone Resources: **All zones**
 → **Continue to summary → Create Token** → 나온 토큰 복사 (한 번만 보임)
 
-### 4. GitHub 저장소에 열쇠 3개 넣기
+### 4. GitHub 저장소에 열쇠 2개 넣기
 저장소 **Settings → Secrets and variables → Actions → New repository secret**
 
 | 이름 | 값 |
 |---|---|
 | `CLOUDFLARE_API_TOKEN` | 3번 토큰 |
 | `CLOUDFLARE_ACCOUNT_ID` | 2번 계정 ID |
-| `AJIT_INVITE_CODE` | 친구 초대용 비밀 문구 (아무 영어+숫자, 예: `whisky2026night`) |
 
 ### 5. 배포 실행
 저장소 **Actions → deploy → Run workflow** (이후엔 main에 올릴 때마다 자동)
 
 ## 친구 초대
 ```
-https://ajit.<계정이름>.workers.dev/?i=<AJIT_INVITE_CODE>
+https://ajit.ajit-worker.workers.dev/
 ```
 이 링크를 카톡으로 보내면, 친구가 비어 있는 캐릭터를 골라 들어온다.
-한 번 고르면 그 휴대폰이 기억해서 다음부턴 링크만 누르면(초대 코드 없이도) 바로 입장.
+초대 코드 없이 누구나 빈 캐릭터를 고를 수 있다. 현재 고정 캐릭터는 3명이다.
+한 번 고르면 같은 브라우저가 멤버 토큰을 기억해서 다음부턴 바로 입장한다.
+바 화면의 **친구 초대** 버튼으로 기본 주소를 공유할 수 있다. 휴대폰에서는 공유 창을 열고, 공유 창을 지원하지 않는 브라우저에서는 링크를 복사한다.
 휴대폰을 바꾼 친구는 방장이 자리를 비워 줘야 다시 고를 수 있다 (관리 화면은 다음 버전).
 
-**저장소가 공개라서 초대 코드는 절대 코드에 쓰지 말고 Secrets에만 둔다.**
+감정 기능은 일시 중지돼 있으며 장면과 채팅 아바타는 초기 얼굴을 사용한다.
+기존 `INVITE_CODE`/`AJIT_INVITE_CODE` 설정은 더 이상 입장에 사용하지 않는다.
 
 ## 로컬 개발
 ```
 cd worker
 npm install
-printf 'INVITE_CODE=test-invite\n' > .dev.vars
-npm run dev                       # http://127.0.0.1:8787/?i=test-invite
+npm run dev                       # http://127.0.0.1:8787/
 node test/live.test.mjs           # (dev 실행 중에) 다중 접속 시험 13개
 ```
 

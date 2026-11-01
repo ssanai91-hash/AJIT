@@ -1,7 +1,7 @@
 // 아지트 실시간 서버 (Cloudflare Workers + Durable Objects)
 //  - 정적 화면: wrangler의 assets(public/)가 먼저 응답
 //  - /api/bar       : 멤버 목록(누가 비었는지, 누가 접속 중인지)
-//  - /api/bar/ws    : 웹소켓. 첫 메시지 hello로 입장(토큰 복귀 또는 초대 코드로 캐릭터 선택)
+//  - /api/bar/ws    : 웹소켓. 첫 메시지 hello로 입장(토큰 복귀 또는 빈 캐릭터 선택)
 // 바 하나 = Durable Object 하나. 아무도 없으면 잠들고(비용 0), 상태는 내장 SQLite 저장소에 영구 보관.
 import { DurableObject } from 'cloudflare:workers';
 import { apply, initialState, pushLine, resolveToast, RuleError, token, type Action, type Ev, type State } from './rules';
@@ -9,7 +9,6 @@ import { apply, initialState, pushLine, resolveToast, RuleError, token, type Act
 export interface Env {
   BAR: DurableObjectNamespace<BarRoom>;
   ASSETS: Fetcher;
-  INVITE_CODE?: string;
 }
 
 interface Att { id: string }
@@ -23,6 +22,8 @@ export class BarRoom extends DurableObject<Env> {
     super(ctx, env);
     ctx.blockConcurrencyWhile(async () => {
       this.s = (await ctx.storage.get<State>('state')) ?? initialState(Date.now());
+      // 기존에 저장된 감정도 기본 얼굴로 복귀시킨다. 표정 기능은 임시 중지.
+      for (const m of Object.values(this.s.members)) { m.emo = 'neutral'; m.emoUntil = 0; }
       this.tokens = (await ctx.storage.get<Record<string, string>>('tokens')) ?? {};
     });
   }
@@ -67,7 +68,8 @@ export class BarRoom extends DurableObject<Env> {
     const on = this.online();
     return Response.json({
       name: this.s.name,
-      inviteRequired: !!this.env.INVITE_CODE,
+      inviteRequired: false,
+      emotionsEnabled: false,
       members: this.s.order.map((id) => {
         const m = this.s.members[id];
         return { id, name: m.name, owner: m.owner, claimed: m.claimed, online: on.has(id), lastSeen: m.lastSeen };
@@ -89,7 +91,6 @@ export class BarRoom extends DurableObject<Env> {
       if (msg.token) id = Object.keys(this.tokens).find((k) => this.tokens[k] === msg.token && this.s.members[k]?.claimed);
       if (!id && msg.claim) {
         const m = this.s.members[msg.claim];
-        if (this.env.INVITE_CODE && msg.invite !== this.env.INVITE_CODE) return this.reject(ws, '초대 링크가 올바르지 않아요');
         if (!m) return this.reject(ws, '없는 캐릭터예요');
         if (m.claimed) return this.reject(ws, `${m.name}은(는) 이미 주인이 있어요`);
         m.claimed = true;
@@ -98,7 +99,7 @@ export class BarRoom extends DurableObject<Env> {
         id = m.id;
         pushLine(this.s, { who: '', kind: 'sys', text: `${m.name}님이 처음으로 바에 왔어요!`, at: now });
       }
-      if (!id) return this.reject(ws, '입장 정보가 없어요. 초대 링크로 다시 들어와 주세요', true);
+      if (!id) return this.reject(ws, '입장 정보가 없어요. 링크를 열어 빈 캐릭터를 골라 주세요', true);
       const wasOn = this.online().has(id);
       ws.serializeAttachment({ id } satisfies Att);
       this.s.members[id].lastSeen = now;

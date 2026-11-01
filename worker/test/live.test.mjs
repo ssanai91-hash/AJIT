@@ -3,8 +3,8 @@ import WebSocket from 'ws';
 import assert from 'node:assert/strict';
 
 const BASE = process.env.AJIT_URL ?? 'http://127.0.0.1:8787';
+if (!['localhost', '127.0.0.1', '[::1]'].includes(new URL(BASE).hostname)) throw new Error('이 시험은 빈 로컬 서버에서만 실행하세요');
 const WS = BASE.replace(/^http/, 'ws') + '/api/bar/ws';
-const INVITE = process.env.INVITE ?? 'test-invite';
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function phone(hello) {
@@ -28,18 +28,19 @@ const ok = (name) => console.log('  ✓', name);
 
 console.log('아지트 실시간 서버 시험');
 
-// 1) 초대 코드 없이 캐릭터 고르기 → 거절
-const bad = await phone({ claim: 'chansu', invite: 'wrong' });
-assert.match(bad.errs[0], /초대 링크/); ok('잘못된 초대 링크는 거절');
+// 1) 공개 입장, 감정 기능은 임시 중지
+const info = await (await fetch(BASE + '/api/bar')).json();
+assert.equal(info.inviteRequired, false);
+assert.equal(info.emotionsEnabled, false); ok('초대 코드 없는 공개 입장, 감정 기능 중지');
 
 // 2) 숭열·찬수 입장
-const sy = await phone({ claim: 'sungyeol', invite: INVITE });
+const sy = await phone({ claim: 'sungyeol' });
 assert.equal(sy.me, 'sungyeol'); assert.ok(sy.token);
-const cs = await phone({ claim: 'chansu', invite: INVITE });
-assert.equal(cs.me, 'chansu'); ok('초대 링크로 숭열·찬수 캐릭터 선택');
+const cs = await phone({ claim: 'chansu' });
+assert.equal(cs.me, 'chansu'); ok('초대 코드 없이 숭열·찬수 캐릭터 선택');
 
 // 3) 이미 주인 있는 캐릭터는 못 고름
-const dup = await phone({ claim: 'chansu', invite: INVITE });
+const dup = await phone({ claim: 'chansu' });
 assert.match(dup.errs[0], /이미 주인/); ok('남의 캐릭터는 못 고름');
 
 await until(() => sy.state?.online?.length === 2);
@@ -57,10 +58,11 @@ send(sy, { t: 'pick', whisky: 5 }); send(sy, { t: 'pour' }); send(sy, { t: 'sip'
 await until(() => cs.state.members.sungyeol.level === 3 && cs.evs.some((e) => e.type === 'sip' && e.id === 'sungyeol'));
 assert.equal(cs.state.members.sungyeol.whisky, 5); ok('술 고르기·따르기·한 모금이 상대 화면에 반영');
 
-// 6) 감정
+// 6) 예전 화면이 감정 요청을 보내도 기본 얼굴 유지
 send(cs, { t: 'emo', emo: 'laugh' });
-await until(() => sy.evs.some((e) => e.type === 'emo' && e.emo === 'laugh'));
-assert.equal(sy.state.members.chansu.emo, 'laugh'); ok('감정 표현 전달');
+await until(() => cs.errs.some((e) => /감정 기능은 준비 중/.test(e)));
+assert.equal(sy.state.members.chansu.emo, 'neutral');
+assert.ok(!sy.evs.some((e) => e.type === 'emo')); ok('감정 요청 차단, 기본 얼굴 유지');
 
 // 7) 입력 중 표시
 send(cs, { t: 'typing' });
@@ -81,7 +83,7 @@ assert.ok(sy.evs.some((e) => e.type === 'leave' && e.id === 'chansu')); ok('나�
 const cs2 = await phone({ token: cs.token });
 assert.equal(cs2.me, 'chansu');
 await until(() => cs2.state?.online?.length === 2);
-assert.equal(cs2.state.members.chansu.emo, 'laugh'); ok('토큰으로 같은 캐릭터 복귀');
+assert.equal(cs2.state.members.chansu.emo, 'neutral'); ok('토큰으로 같은 캐릭터·기본 얼굴 복귀');
 
 // 10) 잘못된 토큰 → 다시 고르라고 안내
 const ghost = await phone({ token: 'nope' });

@@ -13,6 +13,11 @@ head = """<!doctype html>
 <html lang="ko">
 <head>
 <meta charset="utf-8">
+<title>숭열이네 바 · 아지트</title>
+<meta name="description" content="링크를 열고 친구들과 같은 바에서 채팅하고 건배해요.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="숭열이네 바 · 아지트">
+<meta property="og:description" content="초대 코드 없이 링크로 들어와 함께 한잔하며 얘기해요.">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#0b181d">
 <meta name="apple-mobile-web-app-capable" content="yes">

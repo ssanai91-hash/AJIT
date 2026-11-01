@@ -1,5 +1,5 @@
 // 고화질 바의 방 규칙 (순수 로직, Cloudflare·테스트 공용)
-// 멤버는 방장이 미리 정해 둔 고정 캐릭터. 친구는 초대 링크로 들어와 '빈 캐릭터'를 골라 자기 것으로 만든다.
+// 멤버는 방장이 미리 정해 둔 고정 캐릭터. 누구나 링크로 들어와 '빈 캐릭터'를 골라 자기 것으로 만든다.
 
 export const WHISKY_COUNT = 12;
 export const GLASS_MAX = 4;
@@ -110,11 +110,7 @@ export function apply(s: State, id: string, a: Action, now: number): { evs: Ev[]
     case 'typing':
       return { evs: [{ type: 'typing', id }], save: false };
     case 'emo': {
-      if (!EMO.includes(a.emo)) throw new RuleError('없는 표정이에요');
-      m.emo = a.emo;
-      m.emoUntil = a.emo === 'neutral' ? 0 : now + (a.emo === 'tipsy' || a.emo === 'sleepy' ? 30000 : 12000);
-      if (a.emo !== 'neutral') pushLine(s, { who: id, kind: 'emo', text: EMO_LABEL[a.emo], emo: a.emo, at: now });
-      return { evs: [{ type: 'emo', id, emo: a.emo }], save: true };
+      throw new RuleError('감정 기능은 준비 중이에요');
     }
     case 'toast': {
       // 진행 중인 건배가 있으면 참여, 없으면 제안

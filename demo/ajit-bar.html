@@ -184,7 +184,7 @@ button { cursor: pointer; }
   <!-- 입장: 내 캐릭터 고르기 -->
   <section class="select" id="selectView">
     <header class="select-head">
-      <span class="eyebrow">초대장이 도착했어요</span>
+      <span class="eyebrow">어서 와요</span>
       <h1>숭열이네 바</h1>
       <p>누구세요? 내 캐릭터를 골라 주세요.<br>한 번 고르면 이 휴대폰이 기억해서 다음부턴 바로 내 자리로 들어가요.</p>
     </header>
@@ -206,6 +206,7 @@ button { cursor: pointer; }
     <header class="top">
       <div class="top-title"><b>숭열이네 바</b><small id="status">3명 접속</small></div>
       <button class="pill" id="switchBtn" type="button">캐릭터 바꾸기</button>
+      <button class="pill" id="inviteBtn" type="button" hidden>친구 초대</button>
     </header>
     <div class="scene-wrap" id="sceneWrap">
       <div class="scene" id="scene" aria-label="바 장면">
@@ -222,7 +223,7 @@ button { cursor: pointer; }
       <button type="button" data-act="sip"><span><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffd28a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4h12l-1.5 15a2 2 0 0 1-2 1.8h-5a2 2 0 0 1-2-1.8z"/><path d="M7 11h10"/></svg></span>한 모금</button>
       <button type="button" data-act="cheers" class="hot"><span><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1b130e" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 8l5-2 2 6a3 3 0 0 1-5 2z"/><path d="M21 8l-5-2-2 6a3 3 0 0 0 5 2z"/><path d="M7 15l-1 5"/><path d="M17 15l1 5"/><path d="M12 2v3"/></svg></span>건배</button>
       <button type="button" data-act="wave"><span><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffd28a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 13V5a1.5 1.5 0 0 1 3 0v6"/><path d="M11 10V3.5a1.5 1.5 0 0 1 3 0V10"/><path d="M14 10V5a1.5 1.5 0 0 1 3 0v8a7 7 0 0 1-7 7 6 6 0 0 1-5-3l-2-4a1.5 1.5 0 0 1 2.6-1.5L8 14"/></svg></span>손인사</button>
-      <button type="button" data-act="emo"><span><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffd28a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5c1 1.3 2.2 2 3.5 2s2.5-.7 3.5-2"/><path d="M9 9.5h.01"/><path d="M15 9.5h.01"/></svg></span>감정</button>
+      <button type="button" data-act="emo" disabled title="감정 기능은 준비 중이에요"><span><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffd28a" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8.5 14.5c1 1.3 2.2 2 3.5 2s2.5-.7 3.5-2"/><path d="M9 9.5h.01"/><path d="M15 9.5h.01"/></svg></span>감정</button>
     </nav>
     </div>
     <section class="chat" id="chat" aria-live="polite" aria-label="대화"></section>
@@ -253,6 +254,7 @@ button { cursor: pointer; }
     sungyeol: { name: '숭열', n: 3, face: 'img/face3.webp', w: 223, h: 218, cx: 151, bottom: 207, liquid: '#b5651d', whisky: 5 },
   };
   const IDS = Object.keys(P);
+  const EMOTIONS_ENABLED = false; // 표정 그림 보완 후 다시 활성화한다.
   for (const p of Object.values(P)) {
     const rig = window.AjitRig.data[p.n];
     p.w = 170; p.h = rig.height / rig.width * p.w;
@@ -346,6 +348,16 @@ button { cursor: pointer; }
     fit();
   }
   $('switchBtn').addEventListener('click', () => { stopFriends(); picked = me; $('barView').hidden = true; $('selectView').hidden = false; renderCards(); });
+  $('inviteBtn').addEventListener('click', async () => {
+    const url = new URL(location.pathname, location.origin).href;
+    try {
+      if (navigator.share) { await navigator.share({ title: '숭열이네 바', text: '같이 한잔하며 얘기하자!', url }); return; }
+      await navigator.clipboard.writeText(url);
+      flash('초대 링크를 복사했어요. 카카오톡에 붙여넣어 주세요', 4000);
+    } catch (err) {
+      if (err?.name !== 'AbortError') window.prompt('이 주소를 카카오톡으로 보내 주세요', url);
+    }
+  });
 
   // ── 장면 ────────────────────────────
   function buildShelf() {
@@ -392,12 +404,13 @@ button { cursor: pointer; }
   function showFace(id) {
     const e = els[id]; if (!e) return;
     const emo = emoNow[id];
-    const on = !!emo && emo !== 'neutral' && e.pose !== 'sip';
+    const on = EMOTIONS_ENABLED && !!emo && emo !== 'neutral' && e.pose !== 'sip';
     window.AjitRig.setExpression(e.ch, emo, on);
   }
   function setEmo(id, emo, quiet, ms) {
     const e = els[id]; if (!e) return;
     clearTimeout(e.emoTimer);
+    if (!EMOTIONS_ENABLED) { emoNow[id] = 'neutral'; showFace(id); return; }
     emoNow[id] = emo;
     showFace(id);
     if (!quiet && emo !== 'neutral') { lines.push({ id, emo, text: EMO_LABEL[emo], kind: 'emo' }); renderChat(); }
@@ -431,7 +444,7 @@ button { cursor: pointer; }
     const box = $('chat');
     box.innerHTML = lines.slice(-30).map((l) => l.sys
       ? `<div class="line sys">${esc(l.text)}</div>`
-      : `<div class="line${l.kind === 'emo' ? ' emo-line' : ''}"><img src="img/c${P[l.id].n}_thumb_${l.emo || 'neutral'}.webp" alt=""><div><b>${esc(P[l.id].name)}</b><span>${l.kind === 'emo' ? '표정 · ' : ''}${esc(l.text)}</span></div></div>`).join('');
+      : `<div class="line${l.kind === 'emo' ? ' emo-line' : ''}"><img src="${EMOTIONS_ENABLED ? `img/c${P[l.id].n}_thumb_${l.emo || 'neutral'}.webp` : P[l.id].face}" alt=""><div><b>${esc(P[l.id].name)}</b><span>${l.kind === 'emo' ? '표정 · ' : ''}${esc(l.text)}</span></div></div>`).join('');
     box.scrollTop = box.scrollHeight;
   }
   function sys(text) { lines.push({ sys: true, text }); renderChat(); }
@@ -457,7 +470,9 @@ button { cursor: pointer; }
 
   // ── 행동 ────────────────────────────
   document.querySelector('.dock').addEventListener('click', (e) => {
-    const a = e.target.closest('button')?.dataset.act;
+    const button = e.target.closest('button');
+    if (!button || button.disabled) return;
+    const a = button.dataset.act;
     if (a === 'shelf') openShelf();
     if (ONLINE) {
       if (a === 'pour') { send({ t: 'pour' }); flash('잔을 채웠어요'); }
@@ -507,6 +522,7 @@ button { cursor: pointer; }
     $('sheet').hidden = false; $('sheetBack').hidden = false;
   }
   function openEmo() {
+    if (!EMOTIONS_ENABLED) return;
     const n = P[me].n, cur = emoNow[me] || 'neutral';
     $('sheet').innerHTML = `
       <button class="x" type="button" data-x="close" aria-label="닫기">✕</button>
@@ -521,7 +537,7 @@ button { cursor: pointer; }
     const t = e.target.closest('button'); if (!t) return;
     if (t.dataset.x) return closeSheet();
     if (t.dataset.w) return openShelf(+t.dataset.w);
-    if (t.dataset.emo) { closeSheet(); if (ONLINE) return send({ t: 'emo', emo: t.dataset.emo }); setEmo(me, t.dataset.emo); reactEmo(t.dataset.emo); return; }
+    if (t.dataset.emo) { closeSheet(); if (!EMOTIONS_ENABLED) return; if (ONLINE) return send({ t: 'emo', emo: t.dataset.emo }); setEmo(me, t.dataset.emo); reactEmo(t.dataset.emo); return; }
     if (t.dataset.pour && ONLINE) {
       const i = +t.dataset.pour - 1; closeSheet();
       send({ t: 'pick', whisky: i + 1 }); send({ t: 'pour' }); send({ t: 'chat', text: `오늘은 ${WHISKY[i][0]}${josa2(WHISKY[i][0])} 간다` });
@@ -601,7 +617,7 @@ button { cursor: pointer; }
   function connect(hello) {
     const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/api/bar/ws');
     net = ws;
-    ws.onopen = () => ws.send(JSON.stringify({ t: 'hello', invite: store.get('ajit.invite') || '', ...hello }));
+    ws.onopen = () => ws.send(JSON.stringify({ t: 'hello', ...hello }));
     ws.onmessage = (e) => { try { onNet(JSON.parse(e.data)); } catch (err) { console.error(err); } };
     ws.onclose = () => {
       if (net !== ws) return;
@@ -636,7 +652,7 @@ button { cursor: pointer; }
       const away = !on.has(id);
       els[id].ch.classList.toggle('away', away);
       const left = m.emoUntil + skew - Date.now();
-      const want = away ? 'sleepy' : left > 0 ? m.emo : 'neutral';
+      const want = !EMOTIONS_ENABLED ? 'neutral' : away ? 'sleepy' : left > 0 ? m.emo : 'neutral';
       if (emoNow[id] !== want) setEmo(id, want, true, away ? 1e12 : left);
     }
     lines.length = 0;
@@ -674,9 +690,10 @@ button { cursor: pointer; }
   }
   async function bootOnline() {
     $('switchBtn').hidden = true;
-    document.querySelector('.hint').textContent = '초대받은 친구만 들어올 수 있어요. 한 번 고른 캐릭터는 내 것이 돼요';
+    $('inviteBtn').hidden = false;
+    document.querySelector('.hint').textContent = '링크로 들어와 빈 캐릭터를 고르세요. 한 번 고르면 이 브라우저가 내 자리를 기억해요.';
     const q = new URLSearchParams(location.search);
-    if (q.get('i')) { store.set('ajit.invite', q.get('i')); history.replaceState(null, '', location.pathname); }
+    if (q.has('i')) history.replaceState(null, '', location.pathname); // 예전 초대 링크도 계속 열린다.
     await loadRoster();
     const tok = store.get('ajit.token');
     if (tok && store.get('ajit.me')) { picked = store.get('ajit.me'); renderCards(); connect({ token: tok }); }
