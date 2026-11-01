@@ -1,7 +1,7 @@
 // 아지트 실시간 서버 (Cloudflare Workers + Durable Objects)
 //  - 정적 화면: wrangler의 assets(public/)가 먼저 응답
 //  - /api/bar       : 멤버 목록(누가 비었는지, 누가 접속 중인지)
-//  - /api/bar/ws    : 웹소켓. 첫 메시지 hello로 입장(토큰 복귀 또는 빈 캐릭터 선택)
+//  - /api/bar/ws    : 웹소켓. 첫 메시지 hello로 입장(토큰 복귀 또는 캐릭터 선택·기기 이동)
 // 바 하나 = Durable Object 하나. 아무도 없으면 잠들고(비용 0), 상태는 내장 SQLite 저장소에 영구 보관.
 import { DurableObject } from 'cloudflare:workers';
 import { apply, initialState, pushLine, resolveToast, RuleError, token, type Action, type Ev, type State } from './rules';
@@ -92,15 +92,24 @@ export class BarRoom extends DurableObject<Env> {
       if (!id && msg.claim) {
         const m = this.s.members[msg.claim];
         if (!m) return this.reject(ws, '없는 캐릭터예요');
-        if (m.claimed) return this.reject(ws, `${m.name}은(는) 이미 주인이 있어요`);
+        const firstVisit = !m.claimed;
         m.claimed = true;
         newToken = token();
         this.tokens[m.id] = newToken;
         id = m.id;
-        pushLine(this.s, { who: '', kind: 'sys', text: `${m.name}님이 처음으로 바에 왔어요!`, at: now });
+        if (firstVisit) pushLine(this.s, { who: '', kind: 'sys', text: `${m.name}님이 처음으로 바에 왔어요!`, at: now });
       }
       if (!id) return this.reject(ws, '입장 정보가 없어요. 링크를 열어 빈 캐릭터를 골라 주세요', true);
       const wasOn = this.online().has(id);
+      // 새 연결만 이 캐릭터를 제어한다. 이전 토큰·소켓의 자동 복귀는 허용하지 않는다.
+      for (const old of this.ctx.getWebSockets()) {
+        if (old === ws || (old.deserializeAttachment() as Att | null)?.id !== id) continue;
+        old.serializeAttachment(null);
+        try {
+          old.send(JSON.stringify({ type: 'err', msg: '다른 기기로 접속을 옮겼어요', fatal: true, forget: true }));
+          old.close(4002, 'session moved');
+        } catch { /* 이미 종료된 연결 */ }
+      }
       ws.serializeAttachment({ id } satisfies Att);
       this.s.members[id].lastSeen = now;
       if (!wasOn && !newToken) pushLine(this.s, { who: '', kind: 'sys', text: `${this.s.members[id].name}님이 바에 들어왔어요`, at: now });

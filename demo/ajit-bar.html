@@ -321,12 +321,12 @@ button { cursor: pointer; }
     } else { hero.hidden = true; plate.hidden = true; btn.disabled = true; btn.textContent = '캐릭터를 골라 주세요'; }
   }
   function rosterOf(id) { return roster?.members?.find((m) => m.id === id); }
-  function canPick(id) { const r = rosterOf(id); return !ONLINE || !r || !r.claimed || store.get('ajit.me') === id && !!store.get('ajit.token'); }
+  function canPick(id) { return !!P[id]; }
   function cardStatus(id) {
     if (!ONLINE) return id === 'sungyeol' ? '방장' : '고정 멤버';
     const r = rosterOf(id); if (!r) return '';
     if (r.claimed && store.get('ajit.me') === id && store.get('ajit.token')) return '내 자리';
-    if (r.claimed) return r.online ? '지금 바에 있음' : '주인 있음';
+    if (r.claimed) return r.online ? '접속 중 · 이 기기로 옮기기' : '다시 입장하기';
     return r.owner ? '방장 자리 · 비어 있음' : '비어 있음';
   }
   function josa(n) { const c = n.charCodeAt(n.length - 1) - 0xac00; return c >= 0 && c % 28 !== 0 && c % 28 !== 8 ? '으로' : '로'; }
@@ -666,6 +666,8 @@ button { cursor: pointer; }
       flash(m.msg);
       if (m.fatal) {
         net = null;
+        stopFriends(); me = null;
+        $('barView').hidden = true; $('selectView').hidden = false;
         if (m.forget) { store.set('ajit.token', ''); }
         await loadRoster(); picked = null; renderCards();
       }

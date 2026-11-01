@@ -36,12 +36,18 @@ assert.equal(info.emotionsEnabled, false); ok('초대 코드 없는 공개 입�
 // 2) 숭열·찬수 입장
 const sy = await phone({ claim: 'sungyeol' });
 assert.equal(sy.me, 'sungyeol'); assert.ok(sy.token);
-const cs = await phone({ claim: 'chansu' });
+let cs = await phone({ claim: 'chansu' });
 assert.equal(cs.me, 'chansu'); ok('초대 코드 없이 숭열·찬수 캐릭터 선택');
 
-// 3) 이미 주인 있는 캐릭터는 못 고름
+// 3) 같은 캐릭터를 새 기기로 옮기고 이전 토큰을 폐기
 const dup = await phone({ claim: 'chansu' });
-assert.match(dup.errs[0], /이미 주인/); ok('남의 캐릭터는 못 고름');
+assert.equal(dup.me, 'chansu');
+assert.notEqual(dup.token, cs.token);
+await until(() => cs.closed);
+assert.ok(cs.errs.some((e) => /다른 기기/.test(e)));
+const stale = await phone({ token: cs.token });
+assert.ok(stale.errs.length); cs = dup;
+ok('새 기기로 이동, 이전 연결 종료·토큰 폐기');
 
 await until(() => sy.state?.online?.length === 2);
 const roster = await (await fetch(BASE + '/api/bar')).json();
