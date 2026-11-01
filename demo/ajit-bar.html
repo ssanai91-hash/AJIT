@@ -89,6 +89,7 @@ button { cursor: pointer; }
 .char img { position: absolute; left: 0; top: 0; width: 100%; max-width: none; opacity: 0; transition: opacity .12s; }
 .char img.on { opacity: 1; }
 .char.cheer { animation: hop .55s ease-out 3; }
+.char.away { filter: brightness(.62) saturate(.7); }
 .char img.face.on { animation: facepop .28s ease-out; }
 @keyframes facepop { 0% { transform: scale(.94); } 60% { transform: scale(1.03); } 100% { transform: none; } }
 .emo-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
@@ -278,6 +279,10 @@ button { cursor: pointer; }
   const els = {};
   const bubbleTimers = {};
   let audio = null;
+  // 온라인판(실시간 서버)인지, 시연판(가상 친구)인지
+  const ONLINE = !!window.AJIT_ONLINE;
+  let net = null, roster = null, serverState = null, lastTyping = 0;
+  const send = (o) => { if (net && net.readyState === 1) net.send(JSON.stringify(o)); };
 
   // ── 입장 화면 ─────────────────────────
   function renderCards() {
@@ -285,8 +290,9 @@ button { cursor: pointer; }
       <button type="button" class="card" data-id="${id}" aria-pressed="${picked === id}">
         <img src="${P[id].face}" alt="">
         <b>${P[id].name}</b>
-        <small>${id === 'sungyeol' ? '방장' : '고정 멤버'}</small>
+        <small>${cardStatus(id)}</small>
       </button>`).join('');
+    if (ONLINE) $('cards').querySelectorAll('.card').forEach((c) => { c.disabled = !canPick(c.dataset.id); });
     const hero = $('pickHero'), plate = $('pickPlate'), btn = $('enterBtn');
     if (picked) {
       const p = P[picked];
@@ -296,21 +302,39 @@ button { cursor: pointer; }
       btn.disabled = false; btn.textContent = p.name + josa(p.name) + ' 입장하기';
     } else { hero.hidden = true; plate.hidden = true; btn.disabled = true; btn.textContent = '캐릭터를 골라 주세요'; }
   }
+  function rosterOf(id) { return roster?.members?.find((m) => m.id === id); }
+  function canPick(id) { const r = rosterOf(id); return !ONLINE || !r || !r.claimed || store.get('ajit.me') === id && !!store.get('ajit.token'); }
+  function cardStatus(id) {
+    if (!ONLINE) return id === 'sungyeol' ? '방장' : '고정 멤버';
+    const r = rosterOf(id); if (!r) return '';
+    if (r.claimed && store.get('ajit.me') === id && store.get('ajit.token')) return '내 자리';
+    if (r.claimed) return r.online ? '지금 바에 있음' : '주인 있음';
+    return r.owner ? '방장 자리 · 비어 있음' : '비어 있음';
+  }
   function josa(n) { const c = n.charCodeAt(n.length - 1) - 0xac00; return c >= 0 && c % 28 !== 0 && c % 28 !== 8 ? '으로' : '로'; }
-  $('cards').addEventListener('click', (e) => { const b = e.target.closest('.card'); if (b) { picked = b.dataset.id; renderCards(); } });
-  $('enterBtn').addEventListener('click', () => { if (picked) enter(picked); });
+  $('cards').addEventListener('click', (e) => { const b = e.target.closest('.card'); if (b && !b.disabled) { picked = b.dataset.id; renderCards(); } });
+  $('enterBtn').addEventListener('click', () => {
+    if (!picked) return;
+    if (!ONLINE) return enter(picked);
+    $('enterBtn').disabled = true; $('enterBtn').textContent = '바에 들어가는 중…';
+    const mine = store.get('ajit.me') === picked && store.get('ajit.token');
+    connect(mine ? { token: store.get('ajit.token') } : { claim: picked });
+  });
 
   function enter(id) {
+    if (me === id && !$('barView').hidden) return;
     me = id; store.set('ajit.me', id);
     const others = IDS.filter((x) => x !== me);
     order = [others[0], me, others[1]];
     $('selectView').hidden = true; $('barView').hidden = false;
     buildScene();
-    lines.length = 0;
-    sys(`${P[me].name}님이 바에 들어왔어요`);
-    setTimeout(() => say(others[0], `${P[me].name} 왔냐!`), 900);
-    setTimeout(() => say(others[1], '자리 비워놨어 ㅋㅋ'), 2600);
-    startFriends();
+    if (!ONLINE) {
+      lines.length = 0;
+      sys(`${P[me].name}님이 바에 들어왔어요`);
+      setTimeout(() => say(others[0], `${P[me].name} 왔냐!`), 900);
+      setTimeout(() => say(others[1], '자리 비워놨어 ㅋㅋ'), 2600);
+      startFriends();
+    } else if (serverState) applyState(serverState);
     fit();
   }
   $('switchBtn').addEventListener('click', () => { stopFriends(); picked = me; $('barView').hidden = true; $('selectView').hidden = false; renderCards(); });
@@ -364,14 +388,15 @@ button { cursor: pointer; }
     if (on && !e.face.src.endsWith(`_face_${emo}.webp`)) e.face.src = `img/c${P[id].n}_face_${emo}.webp`;
     e.face.classList.toggle('on', on);
   }
-  function setEmo(id, emo, quiet) {
+  function setEmo(id, emo, quiet, ms) {
     const e = els[id]; if (!e) return;
     clearTimeout(e.emoTimer);
     emoNow[id] = emo;
     e.face.classList.remove('on'); void e.face.offsetWidth;
     showFace(id);
     if (!quiet && emo !== 'neutral') { lines.push({ id, emo, text: EMO_LABEL[emo], kind: 'emo' }); renderChat(); }
-    if (emo !== 'neutral') e.emoTimer = setTimeout(() => setEmo(id, 'neutral', true), emo === 'tipsy' || emo === 'sleepy' ? 30000 : 12000);
+    const dur = ms ?? (emo === 'tipsy' || emo === 'sleepy' ? 30000 : 12000);
+    if (emo !== 'neutral' && dur < 1e9) e.emoTimer = setTimeout(() => setEmo(id, 'neutral', true), dur);
   }
   // play(사람, 몸 동작, 팔 동작, 시간): lift = 한 모금 자세, clink* = 건배 자세, cheer = 들썩
   function play(id, bodyCls, armCls, ms) {
@@ -409,21 +434,31 @@ button { cursor: pointer; }
   const QUICK = ['ㅋㅋㅋ', '인정', '한잔해', '건배각?', '수고했어', '굿밤'];
   $('chips').innerHTML = QUICK.map((q) => `<button type="button" data-q="${q}">${q}</button>`).join('');
   $('chips').addEventListener('pointerdown', (e) => { if (e.target.closest('button')) e.preventDefault(); });   // 입력 중이면 키보드 유지
-  $('chips').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) { say(me, b.dataset.q); react(b.dataset.q); } });
+  $('chips').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; if (ONLINE) return send({ t: 'chat', text: b.dataset.q }); say(me, b.dataset.q); react(b.dataset.q); });
   $('sendBtn').addEventListener('pointerdown', (e) => e.preventDefault());
   $('composer').addEventListener('submit', (e) => {
     e.preventDefault();
     const inp = $('msg'), t = inp.value.trim();
     if (!t) return;
     inp.value = ''; $('bubbles').querySelector(`[data-id="${me}"].dots`)?.remove();
+    if (ONLINE) return send({ t: 'chat', text: t });
     say(me, t); react(t);
   });
-  $('msg').addEventListener('input', () => { if ($('msg').value && !$('bubbles').querySelector(`[data-id="${me}"]`)) bubble(me, '', true); });
+  $('msg').addEventListener('input', () => {
+    if ($('msg').value && !$('bubbles').querySelector(`[data-id="${me}"]`)) bubble(me, '', true);
+    if (ONLINE && $('msg').value && Date.now() - lastTyping > 2500) { lastTyping = Date.now(); send({ t: 'typing' }); }
+  });
 
   // ── 행동 ────────────────────────────
   document.querySelector('.dock').addEventListener('click', (e) => {
     const a = e.target.closest('button')?.dataset.act;
     if (a === 'shelf') openShelf();
+    if (ONLINE) {
+      if (a === 'pour') { send({ t: 'pour' }); flash('잔을 채웠어요'); }
+      if (a === 'sip') { if (levels[me] < 1) flash('잔이 비었어요. 먼저 따르세요'); else send({ t: 'sip' }); }
+      if (a === 'cheers') send({ t: 'toast' });
+      if (a === 'wave') send({ t: 'wave' });
+    } else {
     if (a === 'pour') { levels[me] = 4; setLevel(me); flash('잔을 채웠어요'); }
     if (a === 'sip') {
       if (levels[me] < 1) { flash('잔이 비었어요. 먼저 따르세요'); return; }
@@ -431,6 +466,7 @@ button { cursor: pointer; }
     }
     if (a === 'cheers') cheers();
     if (a === 'wave') { play(me, 'cheer', '', 1650); say(me, '안녕!'); }
+    }
     if (a === 'emo') openEmo();
   });
   function cheers() {
@@ -479,7 +515,12 @@ button { cursor: pointer; }
     const t = e.target.closest('button'); if (!t) return;
     if (t.dataset.x) return closeSheet();
     if (t.dataset.w) return openShelf(+t.dataset.w);
-    if (t.dataset.emo) { closeSheet(); setEmo(me, t.dataset.emo); reactEmo(t.dataset.emo); return; }
+    if (t.dataset.emo) { closeSheet(); if (ONLINE) return send({ t: 'emo', emo: t.dataset.emo }); setEmo(me, t.dataset.emo); reactEmo(t.dataset.emo); return; }
+    if (t.dataset.pour && ONLINE) {
+      const i = +t.dataset.pour - 1; closeSheet();
+      send({ t: 'pick', whisky: i + 1 }); send({ t: 'pour' }); send({ t: 'chat', text: `오늘은 ${WHISKY[i][0]}${josa2(WHISKY[i][0])} 간다` });
+      return;
+    }
     if (t.dataset.pour) {
       const i = +t.dataset.pour - 1; P[me].whisky = i;
       els[me].bottle.style.background = `linear-gradient(90deg,${WHISKY[i][3]},#1b130e)`;
@@ -550,8 +591,97 @@ button { cursor: pointer; }
   $('msg').addEventListener('focus', () => setTimeout(fit, 250));
   $('msg').addEventListener('blur', () => { setTimeout(fit, 250); $('bubbles').querySelector(`[data-id="${me}"].dots`)?.remove(); });
 
+  // ── 실시간 서버 연결 (온라인판) ─────────────
+  function connect(hello) {
+    const ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/api/bar/ws');
+    net = ws;
+    ws.onopen = () => ws.send(JSON.stringify({ t: 'hello', invite: store.get('ajit.invite') || '', ...hello }));
+    ws.onmessage = (e) => { try { onNet(JSON.parse(e.data)); } catch (err) { console.error(err); } };
+    ws.onclose = () => {
+      if (net !== ws) return;
+      net = null;
+      if (me && store.get('ajit.token')) { flash('연결이 끊겼어요. 다시 연결하는 중…'); setTimeout(() => { if (!net) connect({ token: store.get('ajit.token') }); }, 1500); }
+    };
+  }
+  async function loadRoster() { roster = await fetch('/api/bar').then((r) => r.json()).catch(() => null); }
+  async function onNet(m) {
+    if (m.type === 'welcome') {
+      store.set('ajit.me', m.me); if (m.token) store.set('ajit.token', m.token);
+      enter(m.me);
+    } else if (m.type === 'state') {
+      serverState = m.state; if (me) applyState(m.state);
+    } else if (m.type === 'ev') onEv(m.ev);
+    else if (m.type === 'err') {
+      flash(m.msg);
+      if (m.fatal) {
+        net = null;
+        if (m.forget) { store.set('ajit.token', ''); }
+        await loadRoster(); picked = null; renderCards();
+      }
+    }
+  }
+  function applyState(st) {
+    const on = new Set(st.online || []);
+    const skew = Date.now() - st.now;
+    for (const id of IDS) {
+      const m = st.members[id]; if (!m || !els[id]) continue;
+      levels[id] = m.level; setLevel(id);
+      if (P[id].whisky !== m.whisky - 1) { P[id].whisky = m.whisky - 1; els[id].bottle.style.background = `linear-gradient(90deg,${WHISKY[m.whisky - 1][3]},#1b130e)`; }
+      const away = !on.has(id);
+      els[id].ch.classList.toggle('away', away);
+      const left = m.emoUntil + skew - Date.now();
+      const want = away ? 'sleepy' : left > 0 ? m.emo : 'neutral';
+      if (emoNow[id] !== want) setEmo(id, want, true, away ? 1e12 : left);
+    }
+    lines.length = 0;
+    for (const l of st.chat) lines.push(l.kind === 'sys' ? { sys: true, text: l.text } : { id: l.who, text: l.text, emo: l.emo, kind: l.kind });
+    renderChat();
+    const n = IDS.filter((id) => on.has(id)).length;
+    $('status').textContent = `${n}명 접속${IDS.length - n ? ` · ${IDS.length - n}명 자리 비움` : ''}`;
+    const tb = $('banner');
+    if (st.toast && st.toast.deadline + skew > Date.now()) {
+      const mine = st.toast.participants.includes(me);
+      tb.textContent = mine ? `건배 제안! 친구들 잔 드는 중 ${st.toast.participants.length}명` : `${st.members[st.toast.by]?.name}님이 건배 제안! 건배 버튼으로 참여`;
+      tb.hidden = false;
+    } else if (!tb.dataset.cheering) tb.hidden = true;
+  }
+  function onEv(ev) {
+    const id = ev.id;
+    if (ev.type === 'say') { $('bubbles').querySelector(`[data-id="${id}"].dots`)?.remove(); bubble(id, ev.text); }
+    if (ev.type === 'sip') play(id, 'sip', 'lift', 1400);
+    if (ev.type === 'wave' || ev.type === 'enter') { play(id, 'cheer', '', 1650); if (ev.type === 'wave') bubble(id, '안녕!'); }
+    if (ev.type === 'emo') { setEmo(id, ev.emo, true); }
+    if (ev.type === 'typing' && id !== me) {
+      bubble(id, '', true);
+      setTimeout(() => $('bubbles').querySelector(`[data-id="${id}"].dots`)?.remove(), 3500);
+    }
+    if (ev.type === 'toastStart' && ev.by !== me) flash(`${P[ev.by]?.name}님이 건배를 제안했어요!`);
+    if (ev.type === 'toastResult') {
+      const tb = $('banner');
+      if (ev.participants.length >= 2) {
+        ev.participants.forEach((p, k) => play(p, 'cheer', ['clinkL', 'clinkC', 'clinkR'][k % 3], 1650));
+        setTimeout(clink, 650);
+        tb.textContent = '건배! 오늘도 수고했다'; tb.hidden = false; tb.dataset.cheering = '1';
+        setTimeout(() => { tb.hidden = true; delete tb.dataset.cheering; }, 2400);
+      } else { tb.hidden = true; if (ev.participants[0] === me) flash('아무도 안 와서 혼자 잔을 들었어요'); play(ev.participants[0], 'cheer', 'clinkC', 1650); }
+    }
+  }
+  async function bootOnline() {
+    $('switchBtn').hidden = true;
+    document.querySelector('.hint').textContent = '초대받은 친구만 들어올 수 있어요. 한 번 고른 캐릭터는 내 것이 돼요';
+    const q = new URLSearchParams(location.search);
+    if (q.get('i')) { store.set('ajit.invite', q.get('i')); history.replaceState(null, '', location.pathname); }
+    await loadRoster();
+    const tok = store.get('ajit.token');
+    if (tok && store.get('ajit.me')) { picked = store.get('ajit.me'); renderCards(); connect({ token: tok }); }
+    else renderCards();
+  }
+
+  if (ONLINE) bootOnline();
+  else {
     const saved = store.get('ajit.me');
-  renderCards();
-  if (saved && P[saved]) { picked = saved; enter(saved); }   // 한 번 고른 휴대폰은 바로 내 자리로
+    renderCards();
+    if (saved && P[saved]) { picked = saved; enter(saved); }   // 한 번 고른 휴대폰은 바로 내 자리로
+  }
 })();
 </script>

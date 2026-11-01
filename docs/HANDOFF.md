@@ -8,7 +8,8 @@
 |---|---|---|
 | `demo/ajit-bar.html` | **고화질 시연판** (휴대폰 웹, 서버 없음). 캐릭터 선택 → 카운터 바 → 채팅·술장·따르기·한 모금·건배·손인사·감정 | 작동. claude.ai에 게시 중 |
 | `demo/img/` | 시연판이 쓰는 그림 (배경·카운터·자세 합성·표정·썸네일) | `tools/hd`로 생성 |
-| `server/` | Colyseus 실시간 서버 + SQLite. 방 생성·초대·고정 멤버·재접속·건배·음악 동기화 | `npm test` 9개 통과 |
+| `worker/` | **실시간 서버 (Cloudflare Workers + Durable Objects)**. 캐릭터 선택 입장·채팅·잔·건배·감정·입력 중 표시·재접속. `demo/` 화면을 그대로 써서 배포 | 다중 접속 시험 13개 통과. 배포: `docs/DEPLOY.md` |
+| `server/` | 1차 Colyseus 서버 (도트판용, 지금은 참고용) | `npm test` 9개 통과 |
 | `shared/core.ts` | 방 규칙 단일 원본 (서버와 도트 체험판이 같이 씀) | |
 | `client/` | 1차 도트(Phaser) 화면. **고화질 방향으로 바뀌어 지금은 참고용** | |
 | `tools/` | 도트 변환기·임시 그림·진열장 그리기·HD 조립 스크립트 | |
@@ -61,6 +62,8 @@ python3 tools/premium_shelf.py <bg 원본> <출력>   # 윗단 '귀빈석' 진�
 ## 5. 다음 개발 순서 (제안)
 
 1. 그림 문제 1·2 해결 → 시연판 교체
-2. `server/`를 고화질 화면 + 캐릭터 선택 방식으로 수정 (방장이 멤버 자리 미리 등록, 친구는 빈 자리 중 선택)
-3. VPS 배포 → 셋이 실제로 같이 접속
+2. ~~고화질 화면 + 캐릭터 선택 서버~~ → `worker/` 완료
+3. Cloudflare 배포 (`docs/DEPLOY.md`) → 셋이 실제로 같이 접속
+
+화면 코드는 `demo/ajit-bar.html` 하나. `window.AJIT_ONLINE`이 없으면 가상 친구 시연판, 있으면 서버 연결판 (`tools/build_web.py`가 주입).
 4. 음성·방 꾸미기·푸시 알림
