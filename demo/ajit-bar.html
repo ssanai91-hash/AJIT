@@ -399,6 +399,7 @@ button { cursor: pointer; }
       glass.innerHTML = `<i style="background:${p.liquid}"></i>`;
       const plate = document.createElement('div');
       plate.className = 'abs plate' + (id === me ? ' me' : ''); plate.style.left = cx + 'px'; plate.textContent = p.name;
+      if (ONLINE) { ch.hidden = true; glass.hidden = true; }
       $('props').append(glass);
       els[id] = { ch, glass, plate, cx, face: ch.querySelector('.face'), pose: 'rest', emoTimer: 0, headTop: Math.round(COUNTER_Y + 30 - p.bottom * CS + 4), timer: 0 };
       setLevel(id);
@@ -688,7 +689,10 @@ button { cursor: pointer; }
       levels[id] = m.level; setLevel(id);
       if (P[id].whisky !== m.whisky - 1) P[id].whisky = m.whisky - 1;
       const away = !on.has(id);
-      els[id].ch.classList.toggle('away', away);
+      els[id].ch.hidden = away;
+      els[id].glass.hidden = away;
+      els[id].plate.hidden = away;
+      if (away) $('bubbles').querySelectorAll(`[data-id="${id}"]`).forEach((bubble) => bubble.remove());
       const left = m.emoUntil + skew - Date.now();
       const want = !EMOTIONS_ENABLED ? 'neutral' : away ? 'sleepy' : left > 0 ? m.emo : 'neutral';
       if (emoNow[id] !== want) setEmo(id, want, true, away ? 1e12 : left);
@@ -697,7 +701,7 @@ button { cursor: pointer; }
     for (const l of st.chat) lines.push(l.kind === 'sys' ? { sys: true, text: l.text } : { id: l.who, text: l.text, emo: l.emo, kind: l.kind });
     renderChat();
     const n = IDS.filter((id) => on.has(id)).length;
-    $('status').textContent = `${n}명 접속${IDS.length - n ? ` · ${IDS.length - n}명 자리 비움` : ''}`;
+    $('status').textContent = `${n}명 접속${IDS.length - n ? ` · ${IDS.length - n}명 빈자리` : ''}`;
     const tb = $('banner');
     if (st.toast && st.toast.deadline + skew > Date.now()) {
       const mine = st.toast.participants.includes(me);
