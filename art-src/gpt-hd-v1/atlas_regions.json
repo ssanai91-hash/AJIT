@@ -1,0 +1,52 @@
+{
+  "status": "draft_regions_not_registered",
+  "rectangle_format": "x,y,width,height; coordinates start at top-left",
+  "atlas_size": [
+    1254,
+    1254
+  ],
+  "note": "Unequal source regions, not a uniform 2x2 sheet. Shoulder pivots and individual arm scales must be measured during registration.",
+  "regions": {
+    "base": [
+      0,
+      0,
+      725,
+      784
+    ],
+    "arm_rest": [
+      725,
+      0,
+      529,
+      784
+    ],
+    "arm_toast": [
+      0,
+      784,
+      725,
+      470
+    ],
+    "arm_sip": [
+      725,
+      784,
+      529,
+      470
+    ]
+  },
+  "characters": {
+    "char_01": {
+      "atlas": "characters/char_01_parts.png",
+      "shoulder_pivot": null,
+      "registered": false
+    },
+    "char_02": {
+      "atlas": "characters/char_02_parts.png",
+      "shoulder_pivot": null,
+      "registered": false
+    },
+    "char_03": {
+      "atlas": "characters/char_03_parts.png",
+      "shoulder_pivot": null,
+      "registered": false
+    }
+  }
+}

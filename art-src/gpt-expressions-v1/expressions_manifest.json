@@ -1,0 +1,45 @@
+{
+  "characters": [
+    {
+      "name": "찬수",
+      "id": "chansu",
+      "file": "expressions/chansu_expressions.png",
+      "size": [
+        1254,
+        1254
+      ],
+      "mode": "RGB",
+      "expression_count": 9,
+      "type": "labeled_concept_sheet_not_registered_frames",
+      "sha256": "ce5206ab8fac6591de5d0025de0a9e1e81e3e8b7018c3f1e837998533cd0eca9"
+    },
+    {
+      "name": "숭열",
+      "id": "soongyeol",
+      "file": "expressions/soongyeol_expressions.png",
+      "size": [
+        1254,
+        1254
+      ],
+      "mode": "RGB",
+      "expression_count": 9,
+      "type": "labeled_concept_sheet_not_registered_frames",
+      "sha256": "0f85a2cfc54b6cb8f6fc93f602f14d5eed342eee905af067e337a97b3b7cc676"
+    },
+    {
+      "name": "정인",
+      "id": "jeongin",
+      "file": "expressions/jeongin_expressions.png",
+      "size": [
+        1254,
+        1254
+      ],
+      "mode": "RGB",
+      "expression_count": 9,
+      "type": "labeled_concept_sheet_not_registered_frames",
+      "sha256": "cd2174d7ff3a15be6a2735fa3881d6cced4c70157ac1af1d1fd653506846d28f"
+    }
+  ],
+  "total_expressions": 27,
+  "individual_frames_extracted": false
+}
