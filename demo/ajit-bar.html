@@ -355,7 +355,14 @@ button { cursor: pointer; }
     } else if (serverState) applyState(serverState);
     fit();
   }
-  $('switchBtn').addEventListener('click', () => { stopFriends(); picked = me; $('barView').hidden = true; $('selectView').hidden = false; renderCards(); });
+  $('switchBtn').addEventListener('click', async () => {
+    stopFriends();
+    const previous = net; net = null; me = null; picked = null;
+    previous?.close();
+    $('barView').hidden = true; $('selectView').hidden = false;
+    if (ONLINE) await loadRoster();
+    renderCards();
+  });
   $('inviteBtn').addEventListener('click', async () => {
     const url = new URL(location.pathname, location.origin).href;
     try {
@@ -720,22 +727,19 @@ button { cursor: pointer; }
     }
   }
   async function bootOnline() {
-    $('switchBtn').hidden = true;
+    $('switchBtn').hidden = false;
     $('inviteBtn').hidden = false;
-    document.querySelector('.hint').textContent = '링크로 들어와 빈 캐릭터를 고르세요. 한 번 고르면 이 브라우저가 내 자리를 기억해요.';
+    document.querySelector('.hint').textContent = '입장할 캐릭터를 고르세요. 다른 기기에서 접속 중이면 이 기기로 옮겨져요.';
     const q = new URLSearchParams(location.search);
     if (q.has('i')) history.replaceState(null, '', location.pathname); // 예전 초대 링크도 계속 열린다.
     await loadRoster();
-    const tok = store.get('ajit.token');
-    if (tok && store.get('ajit.me')) { picked = store.get('ajit.me'); renderCards(); connect({ token: tok }); }
-    else renderCards();
+    picked = null;
+    renderCards(); // 저장된 토큰은 입장 버튼을 누른 뒤에만 사용한다.
   }
 
   if (ONLINE) bootOnline();
   else {
-    const saved = store.get('ajit.me');
     renderCards();
-    if (saved && P[saved]) { picked = saved; enter(saved); }   // 한 번 고른 휴대폰은 바로 내 자리로
   }
 })();
 </script>
